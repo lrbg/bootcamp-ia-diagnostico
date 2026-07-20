@@ -1,0 +1,73 @@
+name: Deploy Supabase (tablas + funciones)
+
+# Despliega en el proyecto Supabase de Polibio (reusa su backend) via Management API,
+# igual que el CI de Polibio. Crea las tablas, sube las 3 Edge Functions y setea el
+# secreto BOOTCAMP_APP_KEY. No expone el access token: vive como secret del repo.
+#
+# Secrets requeridos en el repo:
+#   SUPABASE_ACCESS_TOKEN  -> el mismo que usa Polibio (copialo desde su repo)
+#   BOOTCAMP_APP_KEY       -> la llave compartida (igual que CONFIG.APP_KEY en js/config.js)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/deploy-supabase.yml"
+
+env:
+  PROJECT_REF: hyylhendjtwdtflzsjdx
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Crear/actualizar tablas (SQL)
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          SQL=$(python3 -c "import json;print(json.dumps(open('supabase/migrations/20260720000000_bootcamp_tablas.sql').read()))")
+          code=$(curl -s -o /tmp/sql.out -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -d "{\"query\": $SQL}")
+          echo "SQL HTTP $code"; cat /tmp/sql.out; echo
+          [ "$code" = "201" ] || [ "$code" = "200" ]
+
+      - name: Desplegar Edge Functions
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          deploy_fn() {
+            local slug=$1
+            local body
+            body=$(python3 -c "import json;print(json.dumps(open('supabase/functions/$slug/index.ts').read()))")
+            local payload="{\"slug\":\"$slug\",\"name\":\"$slug\",\"body\":$body,\"verify_jwt\":false}"
+            status=$(curl -s -o /tmp/fn.out -w "%{http_code}" -X PATCH \
+              -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              "https://api.supabase.com/v1/projects/$PROJECT_REF/functions/$slug" -d "$payload")
+            if [ "$status" = "404" ]; then
+              status=$(curl -s -o /tmp/fn.out -w "%{http_code}" -X POST \
+                -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+                "https://api.supabase.com/v1/projects/$PROJECT_REF/functions" -d "$payload")
+            fi
+            echo "  $slug -> HTTP $status"; cat /tmp/fn.out; echo
+            [ "$status" = "200" ] || [ "$status" = "201" ]
+          }
+          deploy_fn bootcamp-plan
+          deploy_fn bootcamp-email
+          deploy_fn bootcamp-followup
+
+      - name: Setear secreto BOOTCAMP_APP_KEY
+        if: ${{ secrets.BOOTCAMP_APP_KEY != '' }}
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          APP_KEY: ${{ secrets.BOOTCAMP_APP_KEY }}
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/secrets" \
+            -d "[{\"name\":\"BOOTCAMP_APP_KEY\",\"value\":\"$APP_KEY\"}]"
+          echo "BOOTCAMP_APP_KEY seteado"
