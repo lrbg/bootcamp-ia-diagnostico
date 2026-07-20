@@ -1,11 +1,11 @@
 // Dashboard del facilitador: modelo en vivo (Realtime/BroadcastChannel) + agregados.
 import { getSesion } from "./config.js";
-import { HERRAMIENTAS, ARQUETIPOS } from "./data.js";
+import { HERRAMIENTAS, ARQUETIPOS, RETOS_TECNICOS } from "./data.js";
 import { conectarSesion, suscribirEventos, leerResultados } from "./supabase.js";
 import { diagnosticar } from "./diagnostico.js";
 import { generarPlan } from "./plan.js";
 import { leerTareas, leerCorreosLocal } from "./supabase.js";
-import { crearYEnviarTareas, revisarTareas } from "./tareas.js";
+import { crearYEnviarTareas, revisarTareas, asignarRetoTecnico } from "./tareas.js";
 import { progresoDe } from "./nivelacion.js";
 
 // Progreso (rango/XP/racha) de un participante a partir de sus tareas.
@@ -239,44 +239,33 @@ function renderDetalle() {
   pintarSeguimiento(cont, p);
 }
 
-// --- Seguimiento: crear/enviar tareas, revisar, ver respuestas + evaluacion ---
+// --- Seguimiento: crear/enviar tareas, retos tecnicos, revisar, ver respuestas ---
 function pintarSeguimiento(cont, p) {
   const sec = cont.querySelector("#seguimiento-sec");
   const misTareas = TAREAS.filter((t) => t.participante === p.nombre).sort((a, b) => a.orden - b.orden);
-
-  // El plan solo vive en memoria de esta sesion del admin (se regenera al pedirlo).
-  // Si ya hay tareas creadas (persistidas), se muestran aunque no se haya
-  // regenerado el plan en esta carga de la pagina.
-  if (!p.plan && !misTareas.length) { sec.innerHTML = ""; return; }
-  if (!p.plan && misTareas.length) {
-    sec.innerHTML = `<p class="mini-note" style="margin-top:14px">Vuelve a generar el plan para ver sus pasos completos arriba. Sus tareas y avance siguen abajo.</p>`;
-  }
-
   const misCorreos = CORREOS.filter((c) => c.nombre === p.nombre);
+  const tareasPlan = misTareas.filter((t) => t.tipo !== "tecnico");
+  sec.innerHTML = "";
 
-  if (!p.plan) {
-    // Solo tareas (sin plan en memoria): pinta directo la lista y sale.
-    pintarListaTareas(sec, p, misTareas, misCorreos, true);
-    return;
-  }
-
-  if (!misTareas.length) {
-    sec.innerHTML = `
+  // Boton "enviar plan y crear tareas" cuando hay plan en memoria y aun no se crearon.
+  if (p.plan && !tareasPlan.length) {
+    sec.insertAdjacentHTML("beforeend", `
       <div class="det-btns" style="margin-top:14px">
         <button class="btn" id="btn-crear-tareas"><i class="ti ti-send"></i> Enviar plan y crear tareas</button>
       </div>
-      ${!p.email ? `<p class="mini-note">Sin correo registrado: se crean las tareas pero no se envia email.</p>` : ""}
-    `;
+      ${!p.email ? `<p class="mini-note">Sin correo registrado: se crean las tareas pero no se envia email.</p>` : ""}`);
     sec.querySelector("#btn-crear-tareas").addEventListener("click", async () => {
       const b = sec.querySelector("#btn-crear-tareas"); b.disabled = true; b.textContent = "Creando…";
       await crearYEnviarTareas(sesion, { nombre: p.nombre, email: p.email, arquetipo: p.arquetipo }, p.plan);
       await recargarSeguimiento();
       render();
     });
-    return;
+  } else if (!p.plan && tareasPlan.length) {
+    sec.insertAdjacentHTML("beforeend", `<p class="mini-note" style="margin-top:14px">Vuelve a generar el plan para ver sus pasos completos arriba.</p>`);
   }
 
-  pintarListaTareas(sec, p, misTareas, misCorreos, false);
+  // Lista de tareas (plan + tecnicas) + asignar tecnico + revisar + correos.
+  pintarListaTareas(sec, p, misTareas, misCorreos, true);
 }
 
 // Pinta la lista de tareas + boton revisar + buzon de correos.
@@ -284,13 +273,24 @@ function pintarSeguimiento(cont, p) {
 function pintarListaTareas(sec, p, misTareas, misCorreos, append) {
   const done = misTareas.filter((t) => t.estado === "cumplida").length;
   const html = `
-    <h4 class="det-sub" style="margin-top:16px">Tareas y seguimiento (${done}/${misTareas.length} cumplidas)</h4>
-    <div class="det-tareas">
-      ${misTareas.map((t) => tareaAdminHTML(t)).join("")}
+    ${misTareas.length ? `
+      <h4 class="det-sub" style="margin-top:16px">Tareas y seguimiento (${done}/${misTareas.length} cumplidas)</h4>
+      <div class="det-tareas">
+        ${misTareas.map((t) => tareaAdminHTML(t)).join("")}
+      </div>
+      <div class="det-btns">
+        <button class="btn ghost" id="btn-revisar"><i class="ti ti-checklist"></i> Revisar tareas ahora</button>
+      </div>` : ""}
+
+    <h4 class="det-sub" style="margin-top:16px">Asignar reto tecnico (construir de verdad)</h4>
+    <div class="tec-asignar">
+      ${RETOS_TECNICOS.map((r) => {
+        const ya = misTareas.some((t) => t.tipo === "tecnico" && t.retoId === r.id);
+        return `<button class="btn ghost sm tec-btn" data-reto="${r.id}" ${ya ? "disabled" : ""}>
+          <i class="ti ti-${ya ? "check" : "plus"}"></i> ${r.titulo}</button>`;
+      }).join("")}
     </div>
-    <div class="det-btns">
-      <button class="btn ghost" id="btn-revisar"><i class="ti ti-checklist"></i> Revisar tareas ahora</button>
-    </div>
+
     ${misCorreos.length ? `
       <div class="mail-log">
         <h4 class="det-sub">Correos enviados (${misCorreos.length})</h4>
@@ -302,12 +302,22 @@ function pintarListaTareas(sec, p, misTareas, misCorreos, append) {
   if (append) sec.insertAdjacentHTML("beforeend", html);
   else sec.innerHTML = html;
 
-  sec.querySelector("#btn-revisar").addEventListener("click", async () => {
-    const b = sec.querySelector("#btn-revisar"); b.disabled = true; b.innerHTML = 'Revisando… <i class="ti ti-loader-2"></i>';
+  const btnRev = sec.querySelector("#btn-revisar");
+  if (btnRev) btnRev.addEventListener("click", async () => {
+    btnRev.disabled = true; btnRev.innerHTML = 'Revisando… <i class="ti ti-loader-2"></i>';
     const r = await revisarTareas(sesion);
     await recargarSeguimiento();
     render();
     console.log("Revision:", r);
+  });
+
+  sec.querySelectorAll(".tec-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; btn.innerHTML = 'Asignando… <i class="ti ti-loader-2"></i>';
+      await asignarRetoTecnico(sesion, { nombre: p.nombre, email: p.email, arquetipo: p.arquetipo }, btn.dataset.reto);
+      await recargarSeguimiento();
+      render();
+    });
   });
 }
 
@@ -316,16 +326,21 @@ const AT_ESTADO = {
 };
 
 function tareaAdminHTML(t) {
+  const tecnico = t.tipo === "tecnico";
+  const crit = t.evaluacion?.criterios || [];
+  const critHTML = tecnico && crit.length ? `
+    <div class="at-crit">${crit.map((c) => `<span class="${c.ok ? "ok" : "no"}"><i class="ti ti-${c.ok ? "check" : "x"}"></i> ${c.nombre}</span>`).join("")}</div>` : "";
   return `
     <div class="at-row">
       <div class="at-top">
         <span class="task-n">${t.orden}</span>
-        <span class="at-title">${t.paso.titulo}</span>
+        <span class="at-title">${tecnico ? '<span class="tec-tag">Tecnico</span> ' : ""}${t.paso.titulo}</span>
         <span class="tagchip">${AT_ESTADO[t.estado] || t.estado}</span>
       </div>
       ${t.respuesta
-        ? `<div class="at-resp"><b>Respuesta:</b> ${t.respuesta}</div>`
-        : `<div class="at-noresp">Sin respuesta aun${t.recordatorios ? ` · ${t.recordatorios} recordatorio(s)` : ""}</div>`}
+        ? `<div class="at-resp ${tecnico ? "code" : ""}"><b>${tecnico ? "Codigo enviado" : "Respuesta"}:</b>\n${t.respuesta}</div>`
+        : `<div class="at-noresp">Sin ${tecnico ? "codigo" : "respuesta"} aun${t.recordatorios ? ` · ${t.recordatorios} recordatorio(s)` : ""}</div>`}
+      ${critHTML}
       ${t.evaluacion
         ? `<div class="at-eval ${t.evaluacion.cumple ? "ok" : "redo"}"><b>Evaluacion del agente:</b> ${t.evaluacion.feedback}</div>`
         : (t.respuesta ? `<div class="at-noresp">Pendiente de revision.</div>` : "")}

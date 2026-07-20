@@ -76,17 +76,34 @@ function tareaHTML(t) {
   const st = ESTADO[t.estado] || ESTADO.pendiente;
   const editable = t.estado === "pendiente" || t.estado === "rehacer" || t.estado === "vencida";
   const p = t.paso;
+  const tecnico = t.tipo === "tecnico";
+
+  // Checklist de criterios (retos tecnicos): usa el resultado de la evaluacion si existe.
+  const evalCrit = t.evaluacion?.criterios || [];
+  const criteriosHTML = tecnico && t.criterios ? `
+    <div class="crit-list">
+      ${t.criterios.map((c) => {
+        const res = evalCrit.find((r) => r.nombre === c.nombre);
+        const ok = res?.ok;
+        const cls = res ? (ok ? "ok" : "no") : "pend";
+        const ic = res ? (ok ? "ti-circle-check" : "ti-circle-x") : "ti-circle";
+        return `<div class="crit ${cls}"><i class="ti ${ic}"></i> ${c.nombre}</div>`;
+      }).join("")}
+    </div>` : "";
+
   return `
     <div class="task-card">
       <div class="task-head">
         <span class="task-n">${t.orden}</span>
-        <div class="task-title">${p.titulo}</div>
+        <div class="task-title">${tecnico ? '<span class="tec-tag">Reto tecnico</span> ' : ""}${p.titulo}</div>
         <span class="task-st ${st.cls}"><i class="ti ${st.icon}"></i> ${st.txt}</span>
       </div>
       <div class="task-body">
-        ${p.accion ? `<div class="task-l"><b>Que hacer:</b> ${p.accion}</div>` : ""}
-        ${p.recurso ? `<div class="task-l"><b>Recurso:</b> ${p.recurso}</div>` : ""}
-        ${p.practica ? `<div class="task-l"><b>Practica:</b> ${p.practica}</div>` : ""}
+        ${tecnico
+          ? `<div class="task-l">${p.accion}</div>${criteriosHTML}`
+          : `${p.accion ? `<div class="task-l"><b>Que hacer:</b> ${p.accion}</div>` : ""}
+             ${p.recurso ? `<div class="task-l"><b>Recurso:</b> ${p.recurso}</div>` : ""}
+             ${p.practica ? `<div class="task-l"><b>Practica:</b> ${p.practica}</div>` : ""}`}
         <div class="task-meta">Limite: ${fmtFecha(t.fecha_limite)}${t.recordatorios ? ` · ${t.recordatorios} recordatorio(s)` : ""}</div>
 
         ${t.evaluacion ? `
@@ -94,10 +111,10 @@ function tareaHTML(t) {
             <b>${t.evaluacion.cumple ? "Cumplida" : "A reforzar"}:</b> ${t.evaluacion.feedback}
           </div>` : ""}
 
-        ${t.respuesta && !editable ? `<div class="task-resp"><b>Tu respuesta:</b> ${t.respuesta}</div>` : ""}
+        ${t.respuesta && !editable ? `<div class="task-resp ${tecnico ? "code" : ""}"><b>Tu ${tecnico ? "codigo" : "respuesta"}:</b>\n${t.respuesta}</div>` : ""}
 
         ${editable ? `
-          <textarea class="task-input" data-resp="${t.id}" placeholder="Cuenta que hiciste: un ejemplo real y su resultado" rows="3">${t.respuesta || ""}</textarea>
+          <textarea class="task-input ${tecnico ? "code-input" : ""}" data-resp="${t.id}" placeholder="${tecnico ? "Pega aqui tu codigo o flujo" : "Cuenta que hiciste: un ejemplo real y su resultado"}" rows="${tecnico ? 7 : 3}">${t.respuesta || ""}</textarea>
           <button class="btn sm" data-enviar="${t.id}">${t.estado === "rehacer" ? "Reintentar" : "Entregar"} <i class="ti ti-send"></i></button>
         ` : ""}
       </div>

@@ -102,8 +102,15 @@ Deno.serve(async (req) => {
 
     for (const t of lista) {
       // 1) Evaluar entregas sin revisar
-      if (t.estado === "entregada" && !t.evaluacion && openaiKey) {
-        const evalr = await evaluarConOpenAI(openaiKey, t);
+      if (t.estado === "entregada" && !t.evaluacion) {
+        let evalr;
+        if (t.tipo === "tecnico") {
+          evalr = await evaluarTecnico(openaiKey, t);   // estructural + (si hay) OpenAI
+        } else if (openaiKey) {
+          evalr = await evaluarConOpenAI(openaiKey, t);
+        } else {
+          continue; // sin OpenAI no se puede evaluar una tarea de texto libre
+        }
         t.evaluacion = evalr;
         t.estado = evalr.cumple ? "cumplida" : "rehacer";
         evaluadas++;
@@ -115,8 +122,8 @@ Deno.serve(async (req) => {
             link: linkSeguimiento(body.base_url, t.sesion, t.participante),
           });
         }
-        // Fase 2: desbloquear siguiente reto del area al cumplir.
-        if (evalr.cumple) {
+        // Fase 2: desbloquear siguiente reto del area al cumplir (retos del plan, no los tecnicos).
+        if (evalr.cumple && t.tipo !== "tecnico") {
           const nuevo = await crearSiguienteReto(supa, lista, t);
           if (nuevo) {
             retosNuevos++;
@@ -201,6 +208,41 @@ async function crearSiguienteReto(supa: any, lista: any[], t: any) {
   if (error) return null;
   lista.push(nuevo);
   return nuevo;
+}
+
+// Reto tecnico: chequeos estructurales (siempre) + revision semantica con OpenAI (si hay).
+async function evaluarTecnico(key: string | undefined, t: any) {
+  const codigo = (t.respuesta || "").toLowerCase();
+  const criterios = (t.criterios || []).map((c: any) => {
+    const any = (c.any || []).some((k: string) => codigo.includes(k.toLowerCase()));
+    const all = (c.all || []).length ? c.all.every((k: string) => codigo.includes(k.toLowerCase())) : true;
+    return { nombre: c.nombre, ok: any && all && codigo.length >= 20 };
+  });
+  const pasados = criterios.filter((r: any) => r.ok).length;
+  const total = criterios.length || 1;
+  let cumple = codigo.length >= 30 && pasados >= Math.ceil(total * 0.75);
+  let feedback = cumple
+    ? `Tu solucion cubre ${pasados}/${total} criterios.`
+    : `Cubres ${pasados}/${total} criterios. Falta: ${criterios.filter((r: any) => !r.ok).map((r: any) => r.nombre).join("; ")}.`;
+
+  if (key && codigo.length >= 30) {
+    try {
+      const system = "Eres revisor de un reto tecnico de un bootcamp de IA. Evalua el codigo/flujo del participante " +
+        "contra los criterios. Se justo pero exigente. Responde SOLO JSON: {\"cumple\": boolean, \"feedback\": string (2-3 frases, español, que hizo bien y que falta)}.";
+      const user = `Reto: ${t.paso?.titulo}\nEnunciado: ${t.paso?.accion}\nCriterios: ${(t.criterios || []).map((c: any) => c.nombre).join("; ")}\n\nSolucion del participante:\n${t.respuesta}`;
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model: "gpt-4o-mini", temperature: 0.3, response_format: { type: "json_object" },
+          messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+      });
+      const data = await r.json();
+      const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+      if (typeof parsed.cumple === "boolean") cumple = parsed.cumple;
+      if (parsed.feedback) feedback = parsed.feedback;
+    } catch { /* si OpenAI falla, se queda la evaluacion estructural */ }
+  }
+
+  return { cumple, veredicto: cumple ? "cumplida" : "rehacer", feedback, criterios, modelo: key ? "gpt-4o-mini+estructural" : "estructural", at: new Date().toISOString() };
 }
 
 async function evaluarConOpenAI(key: string, t: any) {

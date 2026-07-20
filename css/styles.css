@@ -335,6 +335,19 @@ h2 { font-size: 20px; margin: 0 0 8px; color: var(--navy); }
 .task-input { width: 100%; border: 1.5px solid var(--line); border-radius: var(--radius); padding: 11px 12px; font-size: 14px; font-family: inherit; resize: vertical; outline: none; margin: 6px 0 10px; }
 .task-input:focus { border-color: var(--blue); }
 
+/* ----- Retos tecnicos ----- */
+.tec-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #fff; background: var(--navy); border-radius: 5px; padding: 2px 7px; vertical-align: middle; }
+.code-input { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; }
+.task-resp.code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; white-space: pre-wrap; word-break: break-word; }
+.crit-list { display: grid; gap: 6px; margin: 10px 0; }
+.crit { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mut); }
+.crit i { font-size: 17px; flex-shrink: 0; }
+.crit.pend i { color: var(--mut-2); }
+.crit.ok { color: var(--green-d); }
+.crit.ok i { color: var(--ok); }
+.crit.no { color: var(--bad); }
+.crit.no i { color: var(--bad); }
+
 /* ----- Admin: tareas por participante ----- */
 .det-tareas { margin: 6px 0 14px; }
 .at-row { border: 1px solid var(--line); border-radius: var(--radius); padding: 11px 13px; margin-bottom: 8px; }
@@ -347,6 +360,14 @@ h2 { font-size: 20px; margin: 0 0 8px; color: var(--navy); }
 .at-eval.ok { background: #eef7e6; color: var(--green-d); }
 .at-eval.redo { background: var(--blue-soft); color: var(--blue-d); }
 .at-noresp { font-size: 12.5px; color: var(--mut-2); font-style: italic; }
+.tec-asignar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.tec-btn { flex: 0 1 auto; min-width: 0; width: auto; }
+.at-resp.code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; background: var(--surface-2); border-radius: 8px; padding: 9px 11px; }
+.at-crit { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 6px 0; }
+.at-crit span { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.at-crit .ok { color: var(--green-d); }
+.at-crit .no { color: var(--bad); }
+
 .det-btns { display: flex; gap: 9px; flex-wrap: wrap; margin-bottom: 10px; }
 .det-btns .btn { flex: 1; min-width: 160px; }
 .mail-log { margin-top: 14px; }

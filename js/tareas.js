@@ -1,9 +1,9 @@
 // Logica de tareas de seguimiento: crear desde el plan, entregar, y revisar
 // (evaluar entregas + mandar recordatorios a los que no cumplen).
 import { CONFIG } from "./config.js";
-import { RETOS_POR_AREA } from "./data.js";
+import { RETOS_POR_AREA, RETOS_TECNICOS } from "./data.js";
 import { leerTareas, guardarTareas, actualizarTarea, enviarCorreo, ejecutarRevisionServidor } from "./supabase.js";
-import { mockEvaluar } from "./evaluador.js";
+import { mockEvaluar, mockEvaluarTecnico } from "./evaluador.js";
 import { progresoDe } from "./nivelacion.js";
 
 const DIA = 86400000;
@@ -62,6 +62,40 @@ export async function crearYEnviarTareas(sesion, registro, plan) {
   return { ok: true, tareas, correoOk: correo.ok, sinCorreo: !registro.email };
 }
 
+// El admin asigna un reto tecnico (crear agente/skill/etc.) a un participante.
+export async function asignarRetoTecnico(sesion, registro, retoId) {
+  const reto = RETOS_TECNICOS.find((r) => r.id === retoId);
+  if (!reto) return { ok: false, motivo: "Reto no encontrado." };
+
+  const arr = await leerTareas(sesion);
+  if (arr.some((t) => t.participante === registro.nombre && t.tipo === "tecnico" && t.retoId === retoId)) {
+    return { ok: false, motivo: "Ya tiene ese reto asignado." };
+  }
+  const maxOrden = arr.filter((t) => t.participante === registro.nombre).reduce((m, t) => Math.max(m, t.orden || 0), 0);
+
+  const tarea = {
+    id: nuevoId(), sesion, participante: registro.nombre, email: registro.email || "",
+    arquetipo: registro.arquetipo || "", orden: maxOrden + 1,
+    tipo: "tecnico", retoId: reto.id,
+    paso: { titulo: reto.titulo, accion: reto.enunciado, area: reto.area },
+    criterios: reto.criterios, area: reto.area, nivel: 1,
+    estado: "pendiente", creada_at: ahora().toISOString(),
+    fecha_limite: enDias(CONFIG.TAREAS.LIMITE_DIAS),
+    respuesta: null, entregada_at: null, evaluacion: null,
+    recordatorios: 0, ultimo_recordatorio_at: null,
+  };
+  arr.push(tarea);
+  await guardarTareas(sesion, arr);
+
+  const correo = await enviarCorreo(sesion, {
+    tipo: "reto", to: registro.email, nombre: registro.nombre,
+    asunto: `Nuevo reto tecnico: ${reto.titulo}`,
+    tarea: reto.titulo, accion: reto.enunciado,
+    link: linkSeguimiento(sesion, registro.nombre),
+  });
+  return { ok: true, tarea, correoOk: correo.ok, sinCorreo: !registro.email };
+}
+
 // El usuario entrega una tarea con su respuesta.
 export async function entregarTarea(sesion, tareaId, respuesta) {
   const arr = await leerTareas(sesion);
@@ -90,7 +124,7 @@ export async function revisarTareas(sesion) {
   for (const t of arr) {
     // 1) Evaluar entregas pendientes de revision
     if (t.estado === "entregada" && !t.evaluacion) {
-      t.evaluacion = mockEvaluar(t);
+      t.evaluacion = t.tipo === "tecnico" ? mockEvaluarTecnico(t) : mockEvaluar(t);
       t.estado = t.evaluacion.cumple ? "cumplida" : "rehacer";
       evaluadas++;
       if (t.email) {
@@ -102,8 +136,9 @@ export async function revisarTareas(sesion) {
           link: linkSeguimiento(sesion, t.participante),
         });
       }
-      // Fase 2: al cumplir, desbloquea el siguiente reto (mas dificil) del area.
-      if (t.evaluacion.cumple) {
+      // Fase 2: al cumplir un reto del plan, desbloquea el siguiente del area.
+      // Los retos tecnicos los asigna el admin, no se auto-encadenan.
+      if (t.evaluacion.cumple && t.tipo !== "tecnico") {
         const nuevo = crearSiguienteReto(arr, t);
         if (nuevo) {
           retosNuevos++;

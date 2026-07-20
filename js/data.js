@@ -173,6 +173,59 @@ export const RETOS_POR_AREA = {
   ],
 };
 
+// ===================== Retos tecnicos (construir de verdad) =====================
+// El usuario pega su codigo/flujo y el agente lo evalua contra los criterios.
+// Cada criterio es tambien un chequeo estructural: pasa si el codigo (en minusculas)
+// contiene alguna de las palabras en 'any' (o todas las de 'all').
+export const RETOS_TECNICOS = [
+  {
+    id: "agente",
+    titulo: "Crea un agente",
+    area: "Integracion",
+    enunciado: "Diseña un agente sencillo. Pega su definicion o pseudocodigo: que rol tiene, que herramienta usa y como decide.",
+    criterios: [
+      { nombre: "Define un rol o system prompt", any: ["system prompt", "rol", "role", "actua como", "you are", "instrucciones del sistema"] },
+      { nombre: "Declara al menos una herramienta o funcion", any: ["tool", "herramienta", "function", "def ", "funcion", "api", "def("] },
+      { nombre: "Tiene logica de decision o pasos", any: ["loop", "while", "for ", "if ", "decision", "paso", "step", "then", "entonces"] },
+      { nombre: "Deja claro el objetivo del agente", any: ["objetivo", "goal", "tarea", "resolver", "meta"] },
+    ],
+  },
+  {
+    id: "skill",
+    titulo: "Crea un skill",
+    area: "Skills",
+    enunciado: "Escribe un skill. Pega su estructura: nombre, descripcion de cuando usarlo y las instrucciones de que hace.",
+    criterios: [
+      { nombre: "Incluye el nombre del skill", any: ["name:", "nombre:", "name ="] },
+      { nombre: "Describe cuando usarlo", any: ["description:", "descripcion", "cuando usar", "use when", "para cuando"] },
+      { nombre: "Trae instrucciones de que hace", any: ["instruccion", "steps", "pasos", "how to", "como ", "1.", "- "] },
+      { nombre: "Formato reconocible (frontmatter/md)", any: ["---", "##", "skill", ".md"] },
+    ],
+  },
+  {
+    id: "localizar",
+    titulo: "Localiza skills",
+    area: "Herramientas",
+    enunciado: "Investiga y explica donde viven las skills, como se listan y como se invocan. Da un ejemplo concreto.",
+    criterios: [
+      { nombre: "Dice donde viven las skills", any: ["repo", "marketplace", "plugin", "directorio", "carpeta", ".claude", "skills/", "registro", "catalogo"] },
+      { nombre: "Explica como listarlas o invocarlas", any: ["/", "comando", "invocar", "slash", "activar", "cargar", "listar"] },
+      { nombre: "Da un ejemplo concreto", any: ["ejemplo", "por ejemplo", "ej.", "por ej"] },
+    ],
+  },
+  {
+    id: "copilot",
+    titulo: "Integracion con GitHub Copilot",
+    area: "Herramientas",
+    enunciado: "Conoce las herramientas que se integran con GitHub Copilot. Nombra una, muestra un uso o prompt de ejemplo y que logra.",
+    criterios: [
+      { nombre: "Nombra una herramienta o integracion", any: ["copilot", "mcp", "extension", "tool", "herramienta", "integracion", "chat", "agent"] },
+      { nombre: "Muestra un uso o prompt de ejemplo", any: ["ejemplo", "prompt", "/", "genera", "escribe", "chat", "@"] },
+      { nombre: "Explica que logra", any: ["ayuda", "genera", "automatiza", "resuelve", "acelera", "logra", "ahorra"] },
+    ],
+  },
+];
+
 // Orden de misiones para el flujo.
 export const MISIONES = [
   { id: "m1", titulo: "Arma tu arsenal" },
