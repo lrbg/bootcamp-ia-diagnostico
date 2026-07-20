@@ -1,8 +1,10 @@
 // Logica de tareas de seguimiento: crear desde el plan, entregar, y revisar
 // (evaluar entregas + mandar recordatorios a los que no cumplen).
 import { CONFIG } from "./config.js";
+import { RETOS_POR_AREA } from "./data.js";
 import { leerTareas, guardarTareas, actualizarTarea, enviarCorreo, ejecutarRevisionServidor } from "./supabase.js";
 import { mockEvaluar } from "./evaluador.js";
+import { progresoDe } from "./nivelacion.js";
 
 const DIA = 86400000;
 const ahora = () => new Date();
@@ -32,6 +34,8 @@ export async function crearYEnviarTareas(sesion, registro, plan) {
     arquetipo: registro.arquetipo || "",
     orden: i + 1,
     paso,
+    area: paso.area || "Dimension",   // Fase 2: para desbloquear el siguiente reto
+    nivel: 1,                          // Fase 2: escalon dentro del area
     estado: "pendiente",           // pendiente | entregada | cumplida | rehacer | vencida
     creada_at: ahora().toISOString(),
     fecha_limite: enDias(CONFIG.TAREAS.LIMITE_DIAS),
@@ -77,8 +81,11 @@ export async function revisarTareas(sesion) {
   if (!CONFIG.MOCK_MODE) return ejecutarRevisionServidor(sesion);
 
   const arr = await leerTareas(sesion);
-  let evaluadas = 0, recordatorios = 0;
+  let evaluadas = 0, recordatorios = 0, retosNuevos = 0;
   const now = Date.now();
+
+  // Snapshot de rango por participante (para detectar subida de nivel).
+  const rangoAntes = snapshotRangos(arr);
 
   for (const t of arr) {
     // 1) Evaluar entregas pendientes de revision
@@ -94,6 +101,21 @@ export async function revisarTareas(sesion) {
           tarea: t.paso.titulo, veredicto: t.evaluacion.veredicto, feedback: t.evaluacion.feedback,
           link: linkSeguimiento(sesion, t.participante),
         });
+      }
+      // Fase 2: al cumplir, desbloquea el siguiente reto (mas dificil) del area.
+      if (t.evaluacion.cumple) {
+        const nuevo = crearSiguienteReto(arr, t);
+        if (nuevo) {
+          retosNuevos++;
+          if (t.email) {
+            await enviarCorreo(sesion, {
+              tipo: "reto", to: t.email, nombre: t.participante,
+              asunto: "Nuevo reto desbloqueado en tu plan",
+              tarea: nuevo.paso.titulo, accion: nuevo.paso.accion,
+              link: linkSeguimiento(sesion, t.participante),
+            });
+          }
+        }
       }
       continue;
     }
@@ -121,6 +143,68 @@ export async function revisarTareas(sesion) {
     }
   }
 
+  // Fase 2: detectar subidas de rango y avisar por correo.
+  let subidas = 0;
+  const rangoDespues = snapshotRangos(arr);
+  for (const [nombre, info] of Object.entries(rangoDespues)) {
+    const antes = rangoAntes[nombre];
+    if (antes && info.nivel > antes.nivel && info.email) {
+      subidas++;
+      await enviarCorreo(sesion, {
+        tipo: "nivel", to: info.email, nombre,
+        asunto: `Subiste a ${info.rango}`,
+        rango: info.rango,
+        link: linkSeguimiento(sesion, nombre),
+      });
+    }
+  }
+
   await guardarTareas(sesion, arr);
-  return { ok: true, evaluadas, recordatorios };
+  return { ok: true, evaluadas, recordatorios, retosNuevos, subidas };
+}
+
+// Crea el siguiente reto (mas dificil) del area, si existe y no esta ya creado.
+function crearSiguienteReto(arr, tareaCumplida) {
+  const area = tareaCumplida.area || "Dimension";
+  const nivelActual = tareaCumplida.nivel || 1;
+  const ladder = RETOS_POR_AREA[area] || RETOS_POR_AREA["Dimension"];
+  const contenido = ladder[nivelActual - 1]; // nivel1 -> index0 (nivel2)
+  if (!contenido) return null;               // ya llego al tope del area
+  const nuevoNivel = nivelActual + 1;
+
+  const yaExiste = arr.some((t) =>
+    t.participante === tareaCumplida.participante && t.area === area && t.nivel === nuevoNivel);
+  if (yaExiste) return null;
+
+  const maxOrden = arr.filter((t) => t.participante === tareaCumplida.participante)
+    .reduce((m, t) => Math.max(m, t.orden || 0), 0);
+
+  const nuevo = {
+    id: nuevoId(), sesion: tareaCumplida.sesion,
+    participante: tareaCumplida.participante, email: tareaCumplida.email,
+    arquetipo: tareaCumplida.arquetipo,
+    orden: maxOrden + 1, paso: { ...contenido, area, prioridad: "media" },
+    area, nivel: nuevoNivel,
+    estado: "pendiente", creada_at: ahora().toISOString(),
+    fecha_limite: enDias(CONFIG.TAREAS.LIMITE_DIAS),
+    respuesta: null, entregada_at: null, evaluacion: null,
+    recordatorios: 0, ultimo_recordatorio_at: null,
+  };
+  arr.push(nuevo);
+  return nuevo;
+}
+
+// Rango actual por participante (para comparar antes/despues).
+function snapshotRangos(arr) {
+  const porNombre = {};
+  for (const t of arr) {
+    (porNombre[t.participante] = porNombre[t.participante] || { tareas: [], email: t.email, arquetipo: t.arquetipo }).tareas.push(t);
+    if (t.email) porNombre[t.participante].email = t.email;
+  }
+  const out = {};
+  for (const [nombre, info] of Object.entries(porNombre)) {
+    const p = progresoDe(info.tareas, info.arquetipo);
+    out[nombre] = { nivel: p.rango.nivel, rango: p.rango.nombre, email: info.email };
+  }
+  return out;
 }

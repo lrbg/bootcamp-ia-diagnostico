@@ -84,6 +84,7 @@ function planMock(hallazgos, registro) {
   hallazgos.forEach((h) => { if (!areas.find((a) => a.area === h.area)) areas.push(h); });
   const pasos = areas.slice(0, 4).map((h) => ({
     ...(PLANTILLA[h.area] || PLANTILLA["Dimension"]),
+    area: PLANTILLA[h.area] ? h.area : "Dimension",
     prioridad: h.severidad,
   }));
   if (!pasos.length) {

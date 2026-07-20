@@ -208,6 +208,23 @@ para no romper nada en el primer deploy — pero **debe** setearse antes de deja
 (la URL pública de GitHub Pages, para armar los links de los correos). También se puede correr
 a mano desde la pestaña Actions.
 
-## Fase 2 (ideas)
+## Fase 2 — Progresion (aprender jugando)
 
-Prediccion social, apostar confianza, escenarios por rol, muro de aportaciones y reto por equipos.
+Cuando una tarea sale **cumplida**, el ciclo no termina: continua.
+
+- **XP y rangos**: cada tarea cumplida da XP (`nivel x 100`). El rango sube: Novato → Aprendiz
+  → Practico → Maestro (umbrales en `js/data.js` `RANGOS`). Se muestra junto al arquetipo
+  (ej. "Integrador · Aprendiz").
+- **Reto adaptativo**: al cumplir un reto de un area, se **desbloquea el siguiente, mas dificil**
+  de esa misma area (escalera en `js/data.js` `RETOS_POR_AREA`). El plan crece solo.
+- **Racha**: tareas cumplidas consecutivas. Rompe con un "por reforzar".
+- **Correos nuevos** (Bootcamp IA): "Nuevo reto desbloqueado" y "Subiste a <rango>".
+- El usuario ve su rango, XP y racha en `seguimiento.html`; el admin los ve por participante
+  en el dashboard. Logica en `js/nivelacion.js` y `js/tareas.js`; espejo real en
+  `supabase/functions/bootcamp-followup`.
+
+## Siguientes fases (ideas)
+
+Ligas por temporada y tabla de posiciones, duelos entre pares, retos por equipo, de aprendiz a
+maestro (mentoria entre pares), reto capstone, credencial compartible, re-diagnostico periodico
+(radar antes/despues).

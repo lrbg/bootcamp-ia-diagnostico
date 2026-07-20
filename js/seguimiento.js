@@ -2,6 +2,7 @@
 // Se abre con ?sesion=xxx&u=<nombre> (el link que llega por correo).
 import { conectarSesion, leerTareas } from "./supabase.js";
 import { entregarTarea } from "./tareas.js";
+import { progresoDe } from "./nivelacion.js";
 
 const params = new URLSearchParams(location.search);
 const sesion = params.get("sesion") || "bootcamp-01";
@@ -35,14 +36,22 @@ async function render() {
     return;
   }
 
-  const hechas = mias.filter((t) => t.estado === "cumplida").length;
+  const prog = progresoDe(mias, mias[0]?.arquetipo);
 
   screen.innerHTML = `
     <div class="card">
       <p class="kicker">Tu plan de trabajo</p>
       <h1 style="font-size:22px">Hola, ${usuario}</h1>
-      <p class="lead" style="margin-bottom:8px">Estas actividades te ayudan a crecer en IA. Entrega cada una contando que hiciste.</p>
-      <div class="xp"><span>Avance</span><span class="xp-bar"><span style="width:${Math.round((hechas / mias.length) * 100)}%"></span></span><span>${hechas}/${mias.length}</span></div>
+      <div class="rango-row">
+        <span class="rango-badge"><i class="ti ti-award" aria-hidden="true"></i> ${prog.titulo}</span>
+        ${prog.racha > 0 ? `<span class="racha-badge"><i class="ti ti-flame" aria-hidden="true"></i> racha ${prog.racha}</span>` : ""}
+      </div>
+      <div class="xp">
+        <span>${prog.xp} XP</span>
+        <span class="xp-bar"><span style="width:${prog.rango.pct}%"></span></span>
+        <span>${prog.rango.siguiente ? `faltan ${prog.rango.faltanXP}` : "tope"}</span>
+      </div>
+      <p class="lead" style="margin:10px 0 0">Cada tarea que cumples te da XP y desbloquea el siguiente reto. No rompas la racha.</p>
     </div>
     <div id="lista"></div>
   `;

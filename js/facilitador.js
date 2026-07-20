@@ -6,6 +6,28 @@ import { diagnosticar } from "./diagnostico.js";
 import { generarPlan } from "./plan.js";
 import { leerTareas, leerCorreosLocal } from "./supabase.js";
 import { crearYEnviarTareas, revisarTareas } from "./tareas.js";
+import { progresoDe } from "./nivelacion.js";
+
+// Progreso (rango/XP/racha) de un participante a partir de sus tareas.
+function progresoParticipante(nombre, arquetipo) {
+  const suyas = TAREAS.filter((t) => t.participante === nombre);
+  return suyas.length ? progresoDe(suyas, arquetipo) : null;
+}
+
+function rangoRosterHTML(p) {
+  const pr = progresoParticipante(p.nombre, p.arquetipo);
+  if (!pr) return "";
+  return `<div class="prog-mini"><span class="r">${pr.rango.nombre}</span> · ${pr.xp} XP${pr.racha ? ` · racha ${pr.racha}` : ""}</div>`;
+}
+
+function detProgresoHTML(p) {
+  const pr = progresoParticipante(p.nombre, p.arquetipo);
+  if (!pr) return "";
+  return `<div class="rango-row" style="margin-top:8px">
+    <span class="rango-badge"><i class="ti ti-award"></i> ${pr.rango.nombre} · ${pr.xp} XP</span>
+    ${pr.racha ? `<span class="racha-badge"><i class="ti ti-flame"></i> racha ${pr.racha}</span>` : ""}
+  </div>`;
+}
 
 let TAREAS = [];   // todas las tareas de la sesion
 let CORREOS = [];  // buzon (solo mock) para mostrar lo enviado
@@ -133,7 +155,7 @@ function render() {
             <td>${p.nombre}</td>
             <td>${p.equipo || "-"}</td>
             <td>${p.terminado ? "Termino" : `${p.progreso}/5`}</td>
-            <td>${p.arquetipo ? `<span class="tagchip">${ARQUETIPOS[p.arquetipo]?.nombre || p.arquetipo}</span>` : "-"}</td>
+            <td>${p.arquetipo ? `<span class="tagchip">${ARQUETIPOS[p.arquetipo]?.nombre || p.arquetipo}</span>` : "-"}${rangoRosterHTML(p)}</td>
             <td>${p.terminado ? '<span class="ver">ver <i class="ti ti-chevron-right"></i></span>' : ""}</td>
           </tr>
         `).join("")}
@@ -170,6 +192,7 @@ function renderDetalle() {
       <div>
         <h3 style="margin:0">${p.nombre}</h3>
         <span class="det-arq">${ARQUETIPOS[p.arquetipo]?.nombre || p.arquetipo || ""} ${p.equipo ? "· " + p.equipo : ""}</span>
+        ${detProgresoHTML(p)}
       </div>
       <button class="btn sm" id="btn-cerrar-det"><i class="ti ti-x"></i></button>
     </div>

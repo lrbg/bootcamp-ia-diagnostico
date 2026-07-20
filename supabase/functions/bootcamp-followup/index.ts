@@ -16,7 +16,47 @@ const corsHeaders = {
 
 const RECORDATORIO_DIAS = 1;
 const MAX_RECORDATORIOS = 3;
+const LIMITE_DIAS = 3;
 const DIA = 86400000;
+
+// Fase 2: progresion (espejo de js/data.js + js/nivelacion.js).
+const XP_POR_NIVEL = 100;
+const RANGOS = [
+  { nivel: 1, nombre: "Novato", min: 0 }, { nivel: 2, nombre: "Aprendiz", min: 200 },
+  { nivel: 3, nombre: "Practico", min: 500 }, { nivel: 4, nombre: "Maestro", min: 900 },
+];
+const RETOS_POR_AREA: Record<string, Array<Record<string, string>>> = {
+  "Herramientas": [
+    { titulo: "Compara 3 herramientas", accion: "Resuelve una misma tarea real con 3 IAs distintas y anota cual gano y por que.", recurso: "Comparativa de modelos por tipo de tarea.", practica: "Documenta la comparacion en 5 lineas." },
+    { titulo: "Arma tu stack personal", accion: "Define que herramienta usas para cada tipo de tarea y conviertelo en tu flujo.", recurso: "Ejemplos de stacks de IA por rol.", practica: "Comparte tu stack con el equipo." },
+  ],
+  "Skills": [
+    { titulo: "Aplica el skill en un caso real", accion: "Aplica el skill que reforzaste a un problema real de tu trabajo.", recurso: "Tutorial intermedio del tema.", practica: "Muestra el resultado concreto." },
+    { titulo: "Ensena el skill", accion: "Explicalo a un companero o escribe una mini-guia de una pagina.", recurso: "Como estructurar una explicacion clara.", practica: "Comparte la guia." },
+  ],
+  "Pensamiento critico": [
+    { titulo: "Detecta y corrige", accion: "Encuentra un dato inventado de una IA y corrigelo con fuente.", recurso: "Tecnicas para pedir citas y verificar.", practica: "Documenta el error y su correccion." },
+    { titulo: "Tu checklist de verificacion", accion: "Crea la lista de lo que SIEMPRE verificas antes de usar output de IA.", recurso: "Ejemplos de checklists.", practica: "Usala una semana." },
+  ],
+  "Criterio / riesgo": [
+    { titulo: "Define tu linea roja de datos", accion: "Lista que datos NUNCA metes a una IA publica y por que.", recurso: "Basico de privacidad con IA.", practica: "Compartelo con tu equipo." },
+    { titulo: "Caso de uso seguro", accion: "Redisena un flujo real anonimizando datos para usar IA sin riesgo.", recurso: "Tecnicas de anonimizacion.", practica: "Documenta el antes/despues." },
+  ],
+  "Prompting": [
+    { titulo: "Prompt con ejemplos", accion: "Mejora un prompt agregando 2 ejemplos de entrada y salida.", recurso: "Few-shot prompting.", practica: "Compara resultado con y sin ejemplos." },
+    { titulo: "Cadena de prompts", accion: "Resuelve una tarea compleja en 3 prompts encadenados.", recurso: "Prompt chaining.", practica: "Documenta la cadena." },
+  ],
+  "Integracion": [
+    { titulo: "Automatiza un paso", accion: "Delega un paso repetitivo a IA de forma estable.", recurso: "Casos de automatizacion por rol.", practica: "Mide el tiempo ahorrado." },
+    { titulo: "Integra al flujo del equipo", accion: "Propon como el equipo puede usar IA en un proceso comun.", recurso: "Playbooks de adopcion.", practica: "Presenta la propuesta." },
+  ],
+  "Dimension": [
+    { titulo: "Sube un escalon", accion: "Ponte un reto concreto en tu punto mas debil esta semana.", recurso: "Material del tema.", practica: "Muestra tu avance." },
+    { titulo: "Consolida", accion: "Repite el reto en un contexto distinto para afianzar.", recurso: "Ejercicios avanzados.", practica: "Documenta el resultado." },
+  ],
+};
+const xpDe = (ts: any[]) => ts.filter((t) => t.estado === "cumplida").reduce((a, t) => a + (t.nivel || 1) * XP_POR_NIVEL, 0);
+const rangoDe = (xp: number) => { let r = RANGOS[0]; for (const x of RANGOS) if (xp >= x.min) r = x; return r; };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -51,9 +91,16 @@ Deno.serve(async (req) => {
       }).catch(() => null);
 
     const now = Date.now();
-    let evaluadas = 0, recordatorios = 0;
+    let evaluadas = 0, recordatorios = 0, retosNuevos = 0, subidas = 0;
+    const lista = (tareas || []) as any[];
 
-    for (const t of tareas || []) {
+    // Snapshot de nivel por participante (para detectar subida de rango).
+    const porNombre: Record<string, any[]> = {};
+    for (const t of lista) (porNombre[t.participante] = porNombre[t.participante] || []).push(t);
+    const nivelAntes: Record<string, number> = {};
+    for (const [n, ts] of Object.entries(porNombre)) nivelAntes[n] = rangoDe(xpDe(ts)).nivel;
+
+    for (const t of lista) {
       // 1) Evaluar entregas sin revisar
       if (t.estado === "entregada" && !t.evaluacion && openaiKey) {
         const evalr = await evaluarConOpenAI(openaiKey, t);
@@ -67,6 +114,18 @@ Deno.serve(async (req) => {
             tarea: t.paso?.titulo, veredicto: evalr.veredicto, feedback: evalr.feedback,
             link: linkSeguimiento(body.base_url, t.sesion, t.participante),
           });
+        }
+        // Fase 2: desbloquear siguiente reto del area al cumplir.
+        if (evalr.cumple) {
+          const nuevo = await crearSiguienteReto(supa, lista, t);
+          if (nuevo) {
+            retosNuevos++;
+            if (t.email) await enviarCorreo({
+              tipo: "reto", to: t.email, nombre: t.participante,
+              tarea: nuevo.paso.titulo, accion: nuevo.paso.accion,
+              link: linkSeguimiento(body.base_url, t.sesion, t.participante),
+            });
+          }
         }
         continue;
       }
@@ -95,7 +154,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    return respond({ ok: true, revisadas: (tareas || []).length, evaluadas, recordatorios });
+    // Fase 2: detectar subidas de rango (XP cambio por las nuevas cumplidas).
+    const porNombre2: Record<string, any[]> = {};
+    for (const t of lista) (porNombre2[t.participante] = porNombre2[t.participante] || []).push(t);
+    for (const [n, ts] of Object.entries(porNombre2)) {
+      const nivel = rangoDe(xpDe(ts)).nivel;
+      const email = ts.find((x) => x.email)?.email;
+      if (nivelAntes[n] !== undefined && nivel > nivelAntes[n] && email) {
+        subidas++;
+        await enviarCorreo({
+          tipo: "nivel", to: email, nombre: n, rango: rangoDe(xpDe(ts)).nombre,
+          link: linkSeguimiento(body.base_url, ts[0].sesion, n),
+        });
+      }
+    }
+
+    return respond({ ok: true, revisadas: lista.length, evaluadas, recordatorios, retosNuevos, subidas });
   } catch (e) {
     return respond({ ok: false, error: String(e) }, 500);
   }
@@ -104,6 +178,29 @@ Deno.serve(async (req) => {
 function linkSeguimiento(base: string | undefined, sesion: string, participante: string): string {
   if (!base) return "";
   return `${base}/seguimiento.html?sesion=${encodeURIComponent(sesion)}&u=${encodeURIComponent(participante)}`;
+}
+
+// Crea (inserta) el siguiente reto del area si existe y no esta ya creado.
+async function crearSiguienteReto(supa: any, lista: any[], t: any) {
+  const area = t.area || "Dimension";
+  const nivelActual = t.nivel || 1;
+  const ladder = RETOS_POR_AREA[area] || RETOS_POR_AREA["Dimension"];
+  const contenido = ladder[nivelActual - 1];
+  if (!contenido) return null;
+  const nuevoNivel = nivelActual + 1;
+  if (lista.some((x) => x.participante === t.participante && x.area === area && x.nivel === nuevoNivel)) return null;
+  const maxOrden = lista.filter((x) => x.participante === t.participante).reduce((m, x) => Math.max(m, x.orden || 0), 0);
+  const nuevo = {
+    id: crypto.randomUUID(), sesion: t.sesion, participante: t.participante, email: t.email,
+    arquetipo: t.arquetipo, orden: maxOrden + 1, paso: { ...contenido, area, prioridad: "media" },
+    area, nivel: nuevoNivel, estado: "pendiente", creada_at: new Date().toISOString(),
+    fecha_limite: new Date(Date.now() + LIMITE_DIAS * DIA).toISOString(),
+    respuesta: null, entregada_at: null, evaluacion: null, recordatorios: 0, ultimo_recordatorio_at: null,
+  };
+  const { error } = await supa.from("bootcamp_tareas").insert(nuevo);
+  if (error) return null;
+  lista.push(nuevo);
+  return nuevo;
 }
 
 async function evaluarConOpenAI(key: string, t: any) {

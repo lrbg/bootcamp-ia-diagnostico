@@ -126,6 +126,53 @@ export const ARQUETIPOS = {
   },
 };
 
+// ===================== Fase 2: progresion (aprender jugando) =====================
+
+// Rangos por XP. El nombre se combina con el arquetipo (ej. "Explorador · Practico").
+export const RANGOS = [
+  { nivel: 1, nombre: "Novato", min: 0 },
+  { nivel: 2, nombre: "Aprendiz", min: 200 },
+  { nivel: 3, nombre: "Practico", min: 500 },
+  { nivel: 4, nombre: "Maestro", min: 900 },
+];
+
+// XP que da cada tarea cumplida = nivel de la tarea * este factor.
+export const XP_POR_NIVEL = 100;
+
+// Escalera de retos por area. nivel 1 es el paso base del plan; aqui van los
+// retos MAS DIFICILES que se desbloquean al cumplir (nivel 2 y 3).
+// Al cumplir un reto nivel N de un area, se desbloquea RETOS_POR_AREA[area][N-1].
+export const RETOS_POR_AREA = {
+  "Herramientas": [
+    { titulo: "Compara 3 herramientas", accion: "Resuelve una misma tarea real con 3 IAs distintas y anota cual gano y por que.", recurso: "Comparativa de modelos (Claude/GPT/Gemini) por tipo de tarea.", practica: "Documenta la comparacion en 5 lineas." },
+    { titulo: "Arma tu stack personal", accion: "Define que herramienta usas para cada tipo de tarea y conviertelo en tu flujo.", recurso: "Ejemplos de stacks de IA por rol.", practica: "Comparte tu stack con el equipo." },
+  ],
+  "Skills": [
+    { titulo: "Aplica el skill en un caso real", accion: "Toma el skill que reforzaste y aplicalo a un problema real de tu trabajo.", recurso: "Tutorial intermedio del tema.", practica: "Muestra el resultado concreto." },
+    { titulo: "Ensena el skill", accion: "Explicalo a un companero o escribe una mini-guia de una pagina.", recurso: "Como estructurar una explicacion clara.", practica: "Comparte la guia." },
+  ],
+  "Pensamiento critico": [
+    { titulo: "Detecta y corrige", accion: "Pidele algo a una IA, encuentra un error o dato inventado y corrigelo con fuente.", recurso: "Tecnicas para pedir citas y verificar.", practica: "Documenta el error y su correccion." },
+    { titulo: "Tu checklist de verificacion", accion: "Crea una lista de lo que SIEMPRE verificas antes de usar output de IA.", recurso: "Ejemplos de checklists de verificacion.", practica: "Usala durante una semana." },
+  ],
+  "Criterio / riesgo": [
+    { titulo: "Define tu linea roja de datos", accion: "Lista que datos NUNCA metes a una IA publica y por que.", recurso: "Basico de privacidad y datos con IA.", practica: "Compartelo con tu equipo." },
+    { titulo: "Caso de uso seguro", accion: "Redisena un flujo real anonimizando datos para poder usar IA sin riesgo.", recurso: "Tecnicas de anonimizacion.", practica: "Documenta el antes/despues." },
+  ],
+  "Prompting": [
+    { titulo: "Prompt con ejemplos", accion: "Mejora un prompt agregando 2 ejemplos de entrada y salida esperada.", recurso: "Few-shot prompting.", practica: "Compara el resultado con y sin ejemplos." },
+    { titulo: "Cadena de prompts", accion: "Resuelve una tarea compleja partiendola en 3 prompts encadenados.", recurso: "Prompt chaining.", practica: "Documenta la cadena y el resultado." },
+  ],
+  "Integracion": [
+    { titulo: "Automatiza un paso", accion: "Toma una tarea repetitiva y delega un paso a IA de forma estable.", recurso: "Casos de automatizacion por rol.", practica: "Mide cuanto tiempo ahorraste." },
+    { titulo: "Integra al flujo del equipo", accion: "Propon como el equipo puede usar IA en un proceso comun.", recurso: "Playbooks de adopcion de IA.", practica: "Presenta la propuesta." },
+  ],
+  "Dimension": [
+    { titulo: "Sube un escalon", accion: "Toma tu punto mas debil y ponte un reto concreto para esta semana.", recurso: "Material del tema del bootcamp.", practica: "Muestra tu avance." },
+    { titulo: "Consolida", accion: "Repite el reto en un contexto distinto para afianzar lo aprendido.", recurso: "Ejercicios avanzados.", practica: "Documenta el resultado." },
+  ],
+};
+
 // Orden de misiones para el flujo.
 export const MISIONES = [
   { id: "m1", titulo: "Arma tu arsenal" },

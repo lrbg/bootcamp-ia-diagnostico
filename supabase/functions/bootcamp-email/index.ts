@@ -49,6 +49,23 @@ function construir(p: Record<string, unknown>): { asunto: string; html: string }
          ${boton(link, "Entregar ahora")}`),
     };
   }
+  if (p.tipo === "reto") {
+    return {
+      asunto: (p.asunto as string) || "Nuevo reto desbloqueado",
+      html: shell(`${nombre}, desbloqueaste un reto`,
+        `<p>Cumpliste tu tarea, asi que subiste el nivel. Tu siguiente reto:</p>
+         <div style="border-left:4px solid #7ab648;background:#f6f9fc;padding:10px 12px;margin:8px 0"><b>${p.tarea || ""}</b><br>${p.accion || ""}</div>
+         ${boton(link, "Ver mi reto")}`),
+    };
+  }
+  if (p.tipo === "nivel") {
+    return {
+      asunto: (p.asunto as string) || "Subiste de nivel",
+      html: shell(`Felicidades ${nombre}`,
+        `<p>Por tu constancia subiste a <b>${p.rango || ""}</b>. Sigue asi.</p>
+         ${boton(link, "Ver mi progreso")}`),
+    };
+  }
   // evaluacion
   const ok = p.veredicto === "cumplida";
   return {
