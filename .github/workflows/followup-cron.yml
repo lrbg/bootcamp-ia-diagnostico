@@ -1,0 +1,22 @@
+name: Seguimiento Bootcamp IA
+
+# Revisa las tareas y manda recordatorios a diario.
+# Requiere secrets del repo: SUPABASE_URL, SUPABASE_ANON_KEY, CRON_SECRET, BASE_URL (opcional)
+on:
+  schedule:
+    - cron: "0 15 * * *"   # todos los dias 15:00 UTC (~9am CDMX)
+  workflow_dispatch:        # permite correrlo a mano desde la pestaña Actions
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar revisor
+        run: |
+          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/bootcamp-followup" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "x-bootcamp-key: ${{ secrets.BOOTCAMP_APP_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"base_url\": \"${{ secrets.BASE_URL }}\"}" \
+            -w "\nHTTP %{http_code}\n"

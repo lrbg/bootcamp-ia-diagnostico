@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Facilitador - Diagnostico de IA</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.34.1/tabler-icons.min.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="dash-app">
+    <div class="dash-head">
+      <h1>Tablero del grupo</h1>
+      <span class="live-dot"><span class="blip"></span> en vivo · <span id="sesion"></span></span>
+    </div>
+    <p class="dash-sub">Los resultados aparecen aqui conforme el grupo juega. Usalo para nivelar los equipos.</p>
+
+    <div class="kpis">
+      <div class="kpi"><div class="big" id="kpi-activos">0</div><div class="lbl">participantes</div></div>
+      <div class="kpi"><div class="big" id="kpi-terminaron">0</div><div class="lbl">terminaron</div></div>
+      <div class="kpi"><div class="big" id="kpi-caza">0%</div><div class="lbl">cazo la alucinacion</div></div>
+      <div class="kpi"><div class="big" id="kpi-prompt">0.0</div><div class="lbl">prompting promedio</div></div>
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <h3>Arquetipos del grupo</h3>
+        <div id="p-arquetipos"><p class="empty">Aun sin resultados.</p></div>
+      </div>
+      <div class="panel">
+        <h3>Herramientas mas usadas</h3>
+        <div id="p-herramientas"><p class="empty">Aun sin datos.</p></div>
+      </div>
+      <div class="panel">
+        <h3>Nivel promedio por dimension</h3>
+        <div id="p-dimensiones"><p class="empty">Aun sin resultados.</p></div>
+      </div>
+    </div>
+
+    <div class="panel roster">
+      <h3>Participantes <span class="hint-inline">— toca a alguien para ver qué le falla y generar su plan</span></h3>
+      <div id="p-roster"><p class="empty">Esperando a que se unan.</p></div>
+    </div>
+
+    <div class="panel detalle" id="detalle-panel" hidden>
+      <div id="p-detalle"></div>
+    </div>
+  </div>
+  <script type="module" src="js/facilitador.js"></script>
+</body>
+</html>
